@@ -1,16 +1,14 @@
 ﻿using ClosedXML.Excel;
 using Dapper;
-using DocumentFormat.OpenXml.Drawing.Diagrams;
-using DocumentFormat.OpenXml.Wordprocessing;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using UtfUnknown;
@@ -80,26 +78,21 @@ namespace 打包程式
           throw new Exception("Cell值轉換失敗");
       }
     }
+
     /// <summary>
     /// 專案差異比較
     /// </summary>
     /// <param name="excelPath">Excel路徑</param>
     /// <returns></returns>
-    public dynamic ProjectComparison(string excelPath)
+    public Dictionary<string, Dictionary<string, string>> ProjectComparison(string excelPath)
     {
-      #region 宣告回傳物件
-      dynamic ReturnObj = new ExpandoObject();
-      ReturnObj.Status = false;
-      ReturnObj.Message = "初始回傳";
-      ReturnObj.Data = null;
-      #endregion
+      //【檔案路徑列表】
+      Dictionary<string, Dictionary<string, string>> FileList = new Dictionary<string, Dictionary<string, string>>();
       try
       {
-        Console.WriteLine($"比較作業開始");
+        ConsoleDebug($"比較作業開始");
         //【檔案名稱】
         string ExcelName = Path.GetFileName(excelPath);
-        //【檔案路徑列表】
-        Dictionary<string, Dictionary<string, string>> FileList = new Dictionary<string, Dictionary<string, string>>(); ;
 
         //讀取Excel檔案
         using (XLWorkbook Workbook = new XLWorkbook(excelPath))
@@ -107,9 +100,7 @@ namespace 打包程式
           #region 作業表為空值
           if (Workbook == null)
           {
-            ReturnObj.Status = false;
-            ReturnObj.Message = $"作業表【{ExcelName}】為空值";
-            return ReturnObj;
+            throw new Exception($"作業表【{ExcelName}】為空值");
           }
           #endregion
 
@@ -118,9 +109,7 @@ namespace 打包程式
           #region 查無任何分頁
           if (Worksheets.Count == 0)
           {
-            ReturnObj.Status = false;
-            ReturnObj.Message = $"作業表【{ExcelName}】內查無分頁";
-            return ReturnObj;
+            throw new Exception($"作業表【{ExcelName}】內查無分頁");
           }
           #endregion
 
@@ -131,7 +120,7 @@ namespace 打包程式
             #region 若本分頁為空，跳至下一個分頁執行
             if (Worksheet == null)
             {
-              Console.WriteLine($"作業表【{ExcelName}】找無分頁..跳至下一分頁..");
+              ConsoleDebug($"作業表【{ExcelName}】找無分頁..跳至下一分頁..");
               continue;
             }
             #endregion
@@ -141,12 +130,12 @@ namespace 打包程式
             #region 若本分頁沒有任何資料行，跳至下一個分頁執行
             if (Rows == null || Rows.Count() == 0)
             {
-              Console.WriteLine($"作業表【{ExcelName}】分頁【{Worksheet.Name}】查無任何資料行..跳至下一分頁..");
+              ConsoleDebug($"作業表【{ExcelName}】分頁【{Worksheet.Name}】查無任何資料行..跳至下一分頁..");
               continue;
             }
             #endregion
 
-            Console.WriteLine($"讀取分頁【{Worksheet.Name}】中...");
+            ConsoleDebug($"讀取分頁【{Worksheet.Name}】中...");
 
             //資料為路徑的初始宣告
             string FilePath = string.Empty;
@@ -158,7 +147,7 @@ namespace 打包程式
               #region 若該行無任何資料欄位，跳至下一行執行
               if (Cells == null || Cells.Count() == 0)
               {
-                Console.WriteLine($"分頁【{Worksheet.Name}】第{i}行查無任何資料欄..跳至下一行..");
+                ConsoleDebug($"分頁【{Worksheet.Name}】第{i}行查無任何資料欄..跳至下一行..");
                 continue;
               }
               #endregion
@@ -193,7 +182,7 @@ namespace 打包程式
               {
                 FilePath = TargetCellValue.Replace("$/", "");
                 //跳至下一行
-                Console.WriteLine($"第{i}行，確認為路徑:{FilePath}");
+                ConsoleDebug($"第{i}行，確認為路徑:{FilePath}");
                 continue;
               }
               #endregion
@@ -208,7 +197,7 @@ namespace 打包程式
               #region 【狀況二】僅有來源值
               else if (!String.IsNullOrWhiteSpace(SourceCellValue) && String.IsNullOrEmpty(TargetCellValue))
               {
-                Console.WriteLine($"分頁【{Worksheet.Name}】第{i}行，僅來源值為無效資料");
+                ConsoleDebug($"分頁【{Worksheet.Name}】第{i}行，僅來源值為無效資料");
                 continue;
               }
               #endregion
@@ -217,25 +206,20 @@ namespace 打包程式
               {
                 string TargetPath = $"{FilePath}/{TargetCellValue}";
                 SheetFiles.Add(TargetPath, TargetIsNewCellValue);
-                Console.WriteLine($"第{i}行確認加入資料:{TargetPath}");
+                ConsoleDebug($"第{i}行確認加入資料:{TargetPath}");
               }
               #endregion
             }
             FileList.Add(Worksheet.Name, SheetFiles);
-            Console.WriteLine($"讀取分頁【{Worksheet.Name}】結束...");
+            ConsoleDebug($"讀取分頁【{Worksheet.Name}】結束...");
           }
-          Console.WriteLine($"比較作業結束");
-          ReturnObj.Status = true;
-          ReturnObj.Message = string.Empty;
-          ReturnObj.Data = FileList;
-          return ReturnObj;
+          ConsoleDebug($"比較作業結束");
+          return FileList;
         }
       }
-      catch (Exception ex)
+      catch
       {
-        ReturnObj.Status = false;
-        ReturnObj.Message = ex;
-        return ReturnObj;
+        throw;
       }
     }
     /// <summary>
@@ -243,27 +227,17 @@ namespace 打包程式
     /// </summary>
     /// <param name="TargetFiles">字典<專案,比較過後的差異檔案位置></param>
     /// <returns></returns>
-    public dynamic ProjectReplication(Dictionary<string, string> SourceFolders, Dictionary<string, Dictionary<string, string>> TargetFiles)
+    public void ProjectReplication(Dictionary<string, string> SourceFolders, Dictionary<string, Dictionary<string, string>> TargetFiles)
     {
-      #region 宣告回傳物件
-      dynamic ReturnObj = new ExpandoObject();
-      ReturnObj.Status = false;
-      ReturnObj.Message = "初始回傳";
-      ReturnObj.Data = null;
-      #endregion
-
       #region 來源檔案為空值
       if (TargetFiles == null || TargetFiles.Count == 0)
       {
-        ReturnObj.Status = false;
-        ReturnObj.Message = "傳入物件無資源項目";
-        return ReturnObj;
+        throw new Exception("傳入物件無資源項目");
       }
       #endregion
-
       try
       {
-        Console.WriteLine($"檔案作業開始");
+        ConsoleDebug($"檔案作業開始");
         //開始依照傳入的來源去複製檔案
         foreach (var TargetFile in TargetFiles)
         {
@@ -286,7 +260,7 @@ namespace 打包程式
               Directory.Delete(ProjectPath_Return, true);
             }
             Directory.CreateDirectory(ProjectPath_Return);
-            Console.WriteLine($"重新建立{ProjectName}【已整理差異發行區】完成");
+            ConsoleDebug($"重新建立{ProjectName}【已整理差異發行區】完成");
             #endregion
 
             #region【取得來源檔案夾中的所有檔案，並複製資料夾以及檔案檔案】
@@ -298,7 +272,7 @@ namespace 打包程式
               Directory.CreateDirectory(Path.GetDirectoryName(DestinationPath));
               File.Copy(FilePath, DestinationPath, true);
             }
-            Console.WriteLine($"已將{Path.GetFileName(ProjectPath)}複製於{ProjectName}【已整理差異發行區】");
+            ConsoleDebug($"已將{Path.GetFileName(ProjectPath)}複製於{ProjectName}【已整理差異發行區】");
             #endregion
 
             #region 【取得需要包含的檔案，並刪除不需要的檔案】
@@ -347,11 +321,11 @@ namespace 打包程式
               if (DifferentFilePath.Any(n => n == PartialPath))
               {
                 //包含要留的檔案
-                Console.WriteLine($"保留檔案：{Path.GetFileName(SubFileName)}");
+                ConsoleDebug($"保留檔案：{Path.GetFileName(SubFileName)}");
                 continue;
               }
               //沒包含代表不需要的檔案
-              Console.WriteLine($"刪除檔案：{Path.GetFileName(SubFileName)}");
+              ConsoleDebug($"刪除檔案：{Path.GetFileName(SubFileName)}");
               File.Delete(SubFile);
             }
             foreach (string SubDirectoryPath in SubDirectories)
@@ -369,25 +343,17 @@ namespace 打包程式
           }
           else
           {
-            #region 來源發行區資料夾不存在
-            ReturnObj.Status = false;
-            ReturnObj.Message = $"來源資料夾:【{ProjectName}】不存在";
-            return ReturnObj;
-            #endregion
+            throw new Exception($"來源資料夾:【{ProjectName}】不存在");
           }
         }
-        Console.WriteLine($"檔案作業結束");
-        ReturnObj.Status = true;
-        ReturnObj.Message = string.Empty;
-        return ReturnObj;
+        ConsoleDebug($"檔案作業結束");
       }
-      catch (Exception ex)
+      catch
       {
-        ReturnObj.Status = false;
-        ReturnObj.Message = ex;
-        return ReturnObj;
+        throw;
       }
     }
+
     /// <summary>
     /// 遍巡資料夾及檔案比對保留刪除
     /// </summary>
@@ -396,6 +362,7 @@ namespace 打包程式
     /// <param name="FileList">檔案列表</param>
     public static void TraverseDirectories(string CurrentDirectory, string[] FilePathList, string RemovePathString)
     {
+      CompareOperations CompareMgn = new CompareOperations();
       try
       {
         //取得子資料夾集合
@@ -409,11 +376,11 @@ namespace 打包程式
           if (FilePathList.Any(n => n == PartialPath))
           {
             //包含要留的檔案
-            Console.WriteLine($"保留檔案：{Path.GetFileName(SubFileName)}");
+            CompareMgn.ConsoleDebug($"保留檔案：{Path.GetFileName(SubFileName)}");
             continue;
           }
           //沒包含代表不需要的檔案
-          Console.WriteLine($"刪除檔案：{Path.GetFileName(SubFileName)}");
+          CompareMgn.ConsoleDebug($"刪除檔案：{Path.GetFileName(SubFileName)}");
           File.Delete(SubFile);
         }
         //遞迴到沒子資料夾為止
@@ -425,14 +392,15 @@ namespace 打包程式
         {
           //刪除空資料夾
           Directory.Delete(CurrentDirectory);
-          Console.WriteLine($"已刪除空資料夾：{Path.GetFileName(CurrentDirectory)}");
+          CompareMgn.ConsoleDebug($"已刪除空資料夾：{Path.GetFileName(CurrentDirectory)}");
         }
       }
-      catch (Exception ex)
+      catch
       {
-        throw ex;
+        throw;
       }
     }
+
     /// <summary>
     /// 處理SQL差異檔案語法分類
     /// </summary>
@@ -466,7 +434,7 @@ namespace 打包程式
       #endregion
       try
       {
-        Console.WriteLine("開始處理SQL分類");
+        ConsoleDebug("開始處理SQL分類...");
         //取得SQL差異分類資料夾
         string SQL_Path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{ConfigurationManager.AppSettings["Folder_SQL"]}【已整理差異發行區】");
         string SQL_RunPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ConfigurationManager.AppSettings["SQL_Run"]);
@@ -474,7 +442,7 @@ namespace 打包程式
         #region 判斷是否處理SQL語法處理
         if (!Directory.Exists(SQL_Path))
         {
-          Console.WriteLine($"{ConfigurationManager.AppSettings["Folder_SQL"]}【已整理差異發行區】資料夾不存在，無需處理SQL分類");
+          ConsoleDebug($"{ConfigurationManager.AppSettings["Folder_SQL"]}【已整理差異發行區】資料夾不存在，無需處理SQL分類");
           ReturnObj.Status = true;
           ReturnObj.Message = "";
           return ReturnObj;
@@ -482,7 +450,7 @@ namespace 打包程式
         Files = Directory.GetFiles(SQL_Path, "*.sql", SearchOption.AllDirectories);
         if (Files.Length == 0)
         {
-          Console.WriteLine($"{ConfigurationManager.AppSettings["Folder_SQL"]}【已整理差異發行區】資料夾內無檔案，無需處理SQL分類");
+          ConsoleDebug($"{ConfigurationManager.AppSettings["Folder_SQL"]}【已整理差異發行區】資料夾內無檔案，無需處理SQL分類");
           ReturnObj.Status = true;
           ReturnObj.Message = "";
           return ReturnObj;
@@ -506,10 +474,10 @@ namespace 打包程式
         if (Directory.Exists(SQL_RunPath))
         {
           Directory.Delete(SQL_RunPath, true);
-          Console.WriteLine($"已刪除{ConfigurationManager.AppSettings["SQL_Run"]}資料夾及其內容");
+          ConsoleDebug($"已刪除{ConfigurationManager.AppSettings["SQL_Run"]}資料夾及其內容");
         }
         Directory.CreateDirectory(SQL_RunPath);
-        Console.WriteLine($"{ConfigurationManager.AppSettings["SQL_Run"]}資料夾重建成功");
+        ConsoleDebug($"{ConfigurationManager.AppSettings["SQL_Run"]}資料夾重建成功");
         #endregion
 
         foreach (string FilePath in Files)
@@ -603,24 +571,23 @@ namespace 打包程式
               using (StreamWriter writer = new StreamWriter(fileStream, Encoding.UTF8))
               {
                 writer.WriteLine($"{Content}\nGO");
-                Console.WriteLine($"{Path.GetFileName(FilePath)}已成功寫進{FileName}.sql");
+                ConsoleDebug($"{Path.GetFileName(FilePath)}已成功寫進{FileName}.sql");
               }
             }
           }
           #endregion
         }
-        Console.WriteLine("結束處理SQL分類");
+        ConsoleDebug("結束處理SQL分類");
         ReturnObj.Status = true;
         ReturnObj.Message = string.Empty;
         return ReturnObj;
       }
-      catch (Exception ex)
+      catch
       {
-        ReturnObj.Status = false;
-        ReturnObj.Message = ex;
-        return ReturnObj;
+        throw;
       }
     }
+
     #region 字符集（mapping表）如 Unicode、ASCII [不等於] 字符集的編碼如  utf-8、utf-16、utf-32
     //------------------------------------------
     //UTF編碼規則  |  固定開頭BOM(byte order mark)
@@ -706,6 +673,21 @@ namespace 打包程式
       }
       return "utf-8";
       #endregion
+    }
+
+    /// <summary>
+    /// 偵錯方法
+    /// </summary>
+    /// <param name="Message">訊息文字</param>
+    public void ConsoleDebug(string Message = "")
+    {
+      if (!string.IsNullOrEmpty(Message))
+      {
+        Console.WriteLine(Message);
+        Trace.WriteLine(Message);
+        return;
+      }
+      Console.WriteLine();
     }
   }
 }
