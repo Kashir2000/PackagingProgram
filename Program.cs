@@ -65,21 +65,19 @@ namespace 打包程式
             string CustomPath;
             do
             {
-              CompareMgn.ConsoleDebug($@"請輸入{SheetFile.Key}專案已發行的有效絕對路徑(未輸入則取固定路徑D:\{SheetFile.Key}發行區)後按下Enter鍵：");
+              CompareMgn.ConsoleDebug($@"請輸入{SheetFile.Key}專案已發行的有效絕對路徑後按下Enter鍵：");
               CustomPath = Console.ReadLine();
               if (string.IsNullOrEmpty(CustomPath))
               {
-                // 若輸入為空，則直接跳出迴圈
-                break;
+                CompareMgn.ConsoleDebug($@"尚未輸入{SheetFile.Key}專案已發行的有效絕對路徑，請再試一次！");
               }
               if (!Directory.Exists(CustomPath))
               {
                 CompareMgn.ConsoleDebug($@"{CustomPath}不存在，請重新輸入{SheetFile.Key}專案已發行的有效絕對路徑：");
               }
-            } while (!string.IsNullOrEmpty(CustomPath) && !Directory.Exists(CustomPath));
-            string TagetPath = Directory.Exists(CustomPath) ? CustomPath : $@"D:\{SheetFile.Key}發行區";
-            CompareMgn.ConsoleDebug($"取值路徑:{TagetPath}");
-            ReleaseArea.Add(SheetFile.Key, TagetPath);
+            } while (string.IsNullOrEmpty(CustomPath) || !Directory.Exists(CustomPath));
+            CompareMgn.ConsoleDebug($"取值路徑:{CustomPath}");
+            ReleaseArea.Add(SheetFile.Key, CustomPath);
           }
         }
         #endregion
@@ -97,11 +95,7 @@ namespace 打包程式
         {
           Console.Write($@"是否啟用以App.config目標資料庫二次驗證？(Y/N)：");
           Input = Console.ReadKey().KeyChar.ToString().ToUpper();
-
-          if (!ValidInputs.Contains(Input))
-          {
-            CompareMgn.ConsoleDebug();
-          }
+          CompareMgn.ConsoleDebug();
         } while (!ValidInputs.Contains(Input));
         bool SecondaryVerification = Input == "Y";
         CompareMgn.SQLProcess(SQL_FileData, SecondaryVerification);

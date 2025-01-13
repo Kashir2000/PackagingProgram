@@ -17,6 +17,11 @@ namespace 打包程式
 {
   public class CompareOperations
   {
+    /// <summary>
+    /// 初始化Excel檔案
+    /// </summary>
+    /// <param name="ArrayList">分頁列表</param>
+    /// <returns></returns>
     public XLWorkbook InitWorkbook(string[] ArrayList)
     {
       XLWorkbook XLWorkbook = new XLWorkbook();
@@ -55,7 +60,12 @@ namespace 打包程式
       }
       return XLWorkbook;
     }
-
+    /// <summary>
+    /// 取得Excel欄位值(字串)
+    /// </summary>
+    /// <param name="cellValue">Excel欄位值</param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
     public static string GetCellValue(XLCellValue cellValue)
     {
       switch (cellValue.Type)
@@ -78,7 +88,6 @@ namespace 打包程式
           throw new Exception("Cell值轉換失敗");
       }
     }
-
     /// <summary>
     /// 專案差異比較
     /// </summary>
@@ -225,6 +234,7 @@ namespace 打包程式
     /// <summary>
     /// 專案差異檔案複製
     /// </summary>
+    /// <param name="SourceFolders">字典<專案,發行區路徑></param>
     /// <param name="TargetFiles">字典<專案,比較過後的差異檔案位置></param>
     /// <returns></returns>
     public void ProjectReplication(Dictionary<string, string> SourceFolders, Dictionary<string, Dictionary<string, string>> TargetFiles)
@@ -248,7 +258,17 @@ namespace 打包程式
           //【專案名稱】
           string ProjectName = TargetFile.Key;
           //【複製VS發行區檔案至打包程式區域】
-          string ProjectPath = SourceFolders.Where(n => n.Key == ProjectName).First().Value;
+          string ProjectPath = string.Empty;
+          var MatchProject = SourceFolders.Where(n => n.Key == ProjectName);
+          if (MatchProject.Any())
+          {
+            ProjectPath = MatchProject.First().Value;
+          }
+          else
+          {
+            throw new Exception($"{ProjectName}來源資料夾無資源項目");
+          }
+
           //【取得當前路徑】
           string ProjectPath_Return = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{ProjectName}【已整理差異發行區】");
 
@@ -275,8 +295,9 @@ namespace 打包程式
             ConsoleDebug($"已將{Path.GetFileName(ProjectPath)}複製於{ProjectName}【已整理差異發行區】");
             #endregion
 
-            #region 【取得需要包含的檔案，並刪除不需要的檔案】
-            string[] DifferentFilePath = TargetFile.Value.Where(n =>
+            #region 【取得需要包含的檔案，並濾除不需要的檔案】
+            string[] DifferentFilePath = TargetFile.Value
+            .Where(n =>
             {
               string Extension = Path.GetExtension(n.Key);
               if (Extension.Equals(".cs", StringComparison.OrdinalIgnoreCase))
@@ -284,31 +305,22 @@ namespace 打包程式
                 return false;
               }
               return true;
-            }).Select(n =>
+            })
+            .Select(n =>
             {
-              List<string> PathItem = n.Key.Split('/').ToList();
-              string PartialPath = string.Empty;
+              List<string> PathItems = n.Key.Split('/').ToList();
               string VersionRootFolderName = (ProjectName != ConfigurationManager.AppSettings["Folder_SQL"] ? ConfigurationManager.AppSettings["VersionRootFolderName_Project"] : ConfigurationManager.AppSettings["VersionRootFolderName_SQL"]);
-              bool FindVersionRoot = false;
-              bool FindProjectRoot = false;
-              foreach (string Item in PathItem)
+              int VersionRootIndex = PathItems.IndexOf(VersionRootFolderName);
+              int ProjectRootIndex = PathItems.IndexOf(ProjectName, VersionRootIndex + 1);
+
+              if (VersionRootIndex >= 0 && ProjectRootIndex > VersionRootIndex)
               {
-                if (Item == VersionRootFolderName)
-                {
-                  FindVersionRoot = true;
-                }
-                if (FindVersionRoot && Item == ProjectName)
-                {
-                  FindProjectRoot = true;
-                  continue;
-                }
-                if (FindVersionRoot && FindProjectRoot)
-                {
-                  PartialPath += $@"{Item}\";
-                }
+                return string.Join(@"\", PathItems.Skip(ProjectRootIndex + 1));
               }
-              return PartialPath.Substring(0, PartialPath.Length - 1);
-            }).ToArray();
+              return string.Empty;
+            })
+            .Where(path => !string.IsNullOrEmpty(path))
+            .ToArray();
             #region 這邊因為為了指令濾除根目錄的bin資料夾，故無整入TraverseDirectories
             //取得根目錄下的資料夾
             string[] SubDirectories = Directory.GetDirectories(ProjectPath_Return);
@@ -353,13 +365,12 @@ namespace 打包程式
         throw;
       }
     }
-
     /// <summary>
     /// 遍巡資料夾及檔案比對保留刪除
     /// </summary>
     /// <param name="CurrentDirectory">目標資料夾路徑</param>
+    /// <param name="FilePathList">保留檔案列表</param>
     /// <param name="RemovePathString">根目錄路徑</param>
-    /// <param name="FileList">檔案列表</param>
     public static void TraverseDirectories(string CurrentDirectory, string[] FilePathList, string RemovePathString)
     {
       CompareOperations CompareMgn = new CompareOperations();
@@ -496,11 +507,11 @@ namespace 打包程式
             string Content = DeleteTest.Replace(streamReader.ReadToEnd(), ""); // 讀取所有內容到字串中
 
             #region 二次驗證【確認連接字串有效才做驗證】
-            SqlConnectionStringBuilder Builder = new SqlConnectionStringBuilder(ConfigurationManager.ConnectionStrings["DataBase"].ConnectionString);
-            if (!string.IsNullOrEmpty(Builder.UserID) && !string.IsNullOrEmpty(Builder.Password) && SecondaryVerification)
+            if (SecondaryVerification)
             {
               try
               {
+                ConsoleDebug($"進行資料庫二次驗證中...");
                 string QueryString = string.Empty;
                 if (IsProcdure.IsMatch(Content))
                 {
@@ -533,10 +544,17 @@ namespace 打包程式
                   }
                 }
               }
-              catch
+              catch(Exception ex)
               {
                 //如果發生錯誤，就不二次驗證了依照Excel的驗證為準
+                ConsoleDebug($"資料庫二次驗證發生錯誤...已忽略二次驗證結果。");
+                ConsoleDebug($"資料庫二次驗證錯誤訊息：{ex.Message}");
+                ConsoleDebug(ex.StackTrace);
               }
+            }
+            else
+            {
+              ConsoleDebug($"略過資料庫二次驗證...");
             }
             #endregion
 
