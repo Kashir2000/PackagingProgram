@@ -5,6 +5,8 @@ VisualStudioVersion = 17.5.33530.505
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "打包程式", "打包程式.csproj", "{ED77BF92-AA35-401B-926D-B5D7E6CEB06D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EasyPack", "EasyPack\EasyPack.csproj", "{0CE17D5F-1152-4D9A-9B90-DE0AA6CFEB57}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{ED77BF92-AA35-401B-926D-B5D7E6CEB06D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED77BF92-AA35-401B-926D-B5D7E6CEB06D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ED77BF92-AA35-401B-926D-B5D7E6CEB06D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0CE17D5F-1152-4D9A-9B90-DE0AA6CFEB57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0CE17D5F-1152-4D9A-9B90-DE0AA6CFEB57}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0CE17D5F-1152-4D9A-9B90-DE0AA6CFEB57}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0CE17D5F-1152-4D9A-9B90-DE0AA6CFEB57}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
